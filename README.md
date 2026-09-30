@@ -34,6 +34,11 @@ npm test           # run test suite
 npm run coverage   # run with coverage report
 ```
 
+The checked-in lockfile can also be installed with `npm ci`. Coverage must meet
+80% globally for statements, branches, functions, and lines. The implementation
+walkthrough and recorded test results are in [SOLUTION.md](./SOLUTION.md); the
+test-discovered bugs are in [BUG_REPORT.md](./BUG_REPORT.md).
+
 ---
 
 ## Project Structure
@@ -61,11 +66,11 @@ ASSIGNMENT.md               # Full brief — read this first
 |----------|---------------------------|------------------------------------------|
 | `GET`    | `/tasks`                  | List all tasks. Supports `?status=`, `?page=`, `?limit=` |
 | `POST`   | `/tasks`                  | Create a new task                        |
-| `PUT`    | `/tasks/:id`              | Full update of a task                    |
+| `PUT`    | `/tasks/:id`              | Update supplied editable fields          |
 | `DELETE` | `/tasks/:id`              | Delete a task (returns 204)              |
 | `PATCH`  | `/tasks/:id/complete`     | Mark a task as complete                  |
 | `GET`    | `/tasks/stats`            | Counts by status + overdue count         |
-| `PATCH`  | `/tasks/:id/assign`       | **Assign a task to a user** _(to implement)_ |
+| `PATCH`  | `/tasks/:id/assign`       | Assign or reassign a task to a name       |
 
 ### Task shape
 
@@ -74,13 +79,37 @@ ASSIGNMENT.md               # Full brief — read this first
   "id": "uuid",
   "title": "string",
   "description": "string",
-  "status": "pending | in-progress | completed",
+  "status": "todo | in_progress | done",
   "priority": "low | medium | high",
-  "dueDate": "ISO 8601 or null",
+  "dueDate": "date string or null (ISO 8601 recommended)",
   "completedAt": "ISO 8601 or null",
   "createdAt": "ISO 8601"
 }
 ```
+
+Unassigned tasks omit `assignee`. Assignment adds an `assignee` string.
+
+### Query and update rules
+
+- Status filters use exactly `todo`, `in_progress`, or `done`.
+- Page numbers start at 1. Supplied `page` and `limit` values must be positive
+  safe integers; invalid values return 400. If either is supplied, the omitted
+  counterpart defaults to page 1 or limit 10. Without pagination parameters,
+  the API returns all matching tasks.
+- Filtering is applied before pagination. Results remain plain arrays.
+- PUT retains the original partial-update behavior: omitted fields are preserved,
+  and `{}` is a no-op. Editable fields are `title`, `description`, `status`,
+  `priority`, and `dueDate`. Other PUT fields return 400.
+- A title must contain non-whitespace text. Description must be a string. A due
+  date must be a parseable string or null; null clears it. Status and priority
+  must be valid enum values even when explicitly supplied as empty strings.
+- Assignment accepts only `{ "assignee": "name" }`. Names are trimmed and must
+  contain non-whitespace text, with at most 100 characters after trimming.
+  Reassignment and assignment of completed tasks
+  are allowed. Missing tasks return 404; invalid assignment bodies return 400.
+- Completing a task preserves priority and records a completion timestamp.
+  Repeating completion refreshes that timestamp. General status updates do not
+  manage completion timestamps.
 
 ### Sample requests
 
@@ -93,12 +122,19 @@ curl -X POST http://localhost:3000/tasks \
 
 **List tasks with filter**
 ```bash
-curl "http://localhost:3000/tasks?status=pending&page=1&limit=10"
+curl "http://localhost:3000/tasks?status=todo&page=1&limit=10"
 ```
 
 **Mark complete**
 ```bash
 curl -X PATCH http://localhost:3000/tasks/<id>/complete
+```
+
+**Assign a task**
+```bash
+curl -X PATCH http://localhost:3000/tasks/<id>/assign \
+  -H "Content-Type: application/json" \
+  -d '{"assignee": "Asha"}'
 ```
 
 ---
@@ -111,3 +147,6 @@ See [ASSIGNMENT.md](./ASSIGNMENT.md) for full submission requirements. At minimu
 - **Bug report** — what you found, where in the code, and why it's a bug (not just symptoms)
 - **At least one fix** — with a note on your approach
 - **`PATCH /tasks/:id/assign` implementation** — plus a short explanation of any design decisions (validation, edge cases, etc.)
+
+See [SUBMISSION_NOTES.md](./SUBMISSION_NOTES.md) for the reflection and assistance
+disclosure accompanying this solution.
