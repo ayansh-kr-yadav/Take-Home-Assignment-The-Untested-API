@@ -6,11 +6,12 @@ const getAll = () => [...tasks];
 
 const findById = (id) => tasks.find((t) => t.id === id);
 
-const getByStatus = (status) => tasks.filter((t) => t.status.includes(status));
+const getByStatus = (status) => tasks.filter((t) => t.status === status);
 
-const getPaginated = (page, limit) => {
-  const offset = page * limit;
-  return tasks.slice(offset, offset + limit);
+const getPaginated = (page, limit, status) => {
+  const matchingTasks = status === undefined ? tasks : getByStatus(status);
+  const offset = (page - 1) * limit;
+  return matchingTasks.slice(offset, offset + limit);
 };
 
 const getStats = () => {
@@ -47,7 +48,11 @@ const update = (id, fields) => {
   const index = tasks.findIndex((t) => t.id === id);
   if (index === -1) return null;
 
-  const updated = { ...tasks[index], ...fields };
+  const updated = { ...tasks[index] };
+  // Protect IDs and timestamps even when the service is called without a route.
+  for (const field of ['title', 'description', 'status', 'priority', 'dueDate']) {
+    if (fields[field] !== undefined) updated[field] = fields[field];
+  }
   tasks[index] = updated;
   return updated;
 };
@@ -66,12 +71,20 @@ const completeTask = (id) => {
 
   const updated = {
     ...task,
-    priority: 'medium',
     status: 'done',
     completedAt: new Date().toISOString(),
   };
 
   const index = tasks.findIndex((t) => t.id === id);
+  tasks[index] = updated;
+  return updated;
+};
+
+const assignTask = (id, assignee) => {
+  const index = tasks.findIndex((t) => t.id === id);
+  if (index === -1) return null;
+
+  const updated = { ...tasks[index], assignee: assignee.trim() };
   tasks[index] = updated;
   return updated;
 };
@@ -90,5 +103,6 @@ module.exports = {
   update,
   remove,
   completeTask,
+  assignTask,
   _reset,
 };
